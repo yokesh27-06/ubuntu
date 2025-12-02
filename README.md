@@ -1,31 +1,54 @@
-# Conduro Ubuntu 20.04
-Linux is well-known for being one of the most secure operating systems available. But that doesn't mean you can count on it to be as secure as possible right out of the box. Conduro (_Hardening in Latin_) will automate this process to ensure your platform is secure.
+🔐 Ubuntu 20.04 Hardening Script – Conduro Style :
 
-> ⚠ We recommend to not execute this script on servers with existing firewall configurations.
+⚠ Important Notes
+This script is meant only for freshly installed Ubuntu Server 20.04 systems.
 
-# Getting Started
-This script is designed to be executed on a freshly installed **Ubuntu Server 20.04** server.
+Avoid running on servers with existing firewall or logging configurations, as it may cause conflicts or service disruptions.
 
-```bash
+Always create backups and test on non-production systems first.
+
+Some steps (like disabling logs) might impact your ability to audit or troubleshoot.
+
+🛠 Setup Instructions
+Run this single command to download and execute the hardening script:
+
+bash
+Copy
+Edit
 wget -O ./install.sh https://condu.ro/install.sh && chmod +x ./install.sh && sudo ./install.sh
-```
-![](https://i.imgur.com/PXK7Ctk.gif)
+Fetches the latest version.
 
-# What does it do?
-The purpose of Conduro is to optimize and secure your system to run web applications. It does this by disabling unnecessary services, bootstrapping your firewall, secure your system settings and other things. Continue reading if you want to know exactly what's being executed.
+Makes it executable.
 
-#### update dependencies
+Runs it with root privileges.
+
+🚀 What the Script Does: Detailed Breakdown
+1. 📦 Install Core Utilities
 ```bash
 apt-get install wget sed git -y
 ```
 
-#### update system
-Keeping the system updated is vital before starting anything on your system. This will prevent people to use known vulnerabilities to enter in your system.
+Installs essential CLI tools:
+
+wget: downloads files over HTTP(S).
+
+sed: stream editor for file manipulation.
+
+🔄 Fully Update the System:
+
 ```bash
 apt-get update -y && apt-get full-upgrade -y
 ```
+Updates package lists.
 
-#### update golang **optional**
+Upgrades installed packages to latest stable versions.
+
+Patches vulnerabilities and bugs.
+
+Ensures system stability and security.
+
+. 🧰 (Optional) Install Latest Golang:
+
 ```bash
 rm -rf /usr/local/go
 wget -q -c https://dl.google.com/go/$(curl -s https://golang.org/VERSION?m=text).linux-amd64.tar.gz -O go.tar.gz
@@ -35,180 +58,148 @@ echo "export PATH=/usr/local/go/bin:$PATH" >> /etc/profile
 source /etc/profile
 rm go.tar.gz
 ```
+Removes previous Go installations.
 
-#### update nameservers
-We change the default nameservers to cloudflare because https://www.dnsperf.com/#!dns-resolvers
+Installs latest Go (useful for dev tools).
+
+Adds Go to system environment variables.
+
+4. 🌐 Set Cloudflare DNS for Faster, Private Name Resolution
+
 ```bash
 truncate -s0 /etc/resolv.conf
-echo "nameserver 1.1.1.1" | sudo tee -a /etc/resolv.conf
-echo "nameserver 1.0.0.1" | sudo tee -a /etc/resolv.conf
+echo "nameserver 1.1.1.1" | tee -a /etc/resolv.conf
+echo "nameserver 1.0.0.1" | tee -a /etc/resolv.conf
 ```
-#### update ntp servers
+
+Uses Cloudflare DNS (1.1.1.1, 1.0.0.1).
+
+Faster and more privacy-respecting than typical ISP DNS.
+
+5. ⏲ Configure NTP (Network Time Protocol)
 ```bash
 truncate -s0 /etc/systemd/timesyncd.conf
-echo "[Time]" | sudo tee -a /etc/systemd/timesyncd.conf
-echo "NTP=time.cloudflare.com" | sudo tee -a /etc/systemd/timesyncd.conf
-echo "FallbackNTP=ntp.ubuntu.com" | sudo tee -a /etc/systemd/timesyncd.conf
+echo -e "[Time]\nNTP=time.cloudflare.com\nFallbackNTP=ntp.ubuntu.com" | tee -a /etc/systemd/timesyncd.conf
 ```
+Syncs system time with Cloudflare’s NTP server, falling back to Ubuntu’s.
 
-#### update sysctl.conf
+Accurate time critical for:
+
+SSL certificates
+
+Logs and auditing
+
+Scheduled jobs
+
+🧱 Harden Kernel Network Settings (sysctl.conf)
+
 ```bash
 wget -q -c https://raw.githubusercontent.com/conduro/ubuntu/main/sysctl.conf -O /etc/sysctl.conf
-```
-```conf
-# IP Spoofing protection
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-
-# Ignore ICMP broadcast requests
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-
-# Disable source packet routing
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv6.conf.all.accept_source_route = 0 
-net.ipv4.conf.default.accept_source_route = 0
-net.ipv6.conf.default.accept_source_route = 0
-
-# Ignore send redirects
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.default.send_redirects = 0
-
-# Block SYN attacks
-net.ipv4.tcp_syncookies = 1
-net.ipv4.tcp_max_syn_backlog = 2048
-net.ipv4.tcp_synack_retries = 2
-net.ipv4.tcp_syn_retries = 5
-
-# Log Martians
-net.ipv4.conf.all.log_martians = 1
-net.ipv4.icmp_ignore_bogus_error_responses = 1
-
-# Ignore ICMP redirects
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv6.conf.all.accept_redirects = 0
-net.ipv4.conf.default.accept_redirects = 0 
-net.ipv6.conf.default.accept_redirects = 0
-
-# Ignore Directed pings
-net.ipv4.icmp_echo_ignore_all = 1
-
-# Disable IPv6
-net.ipv6.conf.all.disable_ipv6 = 1
-net.ipv6.conf.default.disable_ipv6 = 1
-net.ipv6.conf.lo.disable_ipv6 = 1
-
-# Hide kernel pointers
-kernel.kptr_restrict = 2
-
-# Enable panic on OOM
-vm.panic_on_oom = 1
-
-# Reboot kernel ten seconds after OOM
-kernel.panic = 10
+sysctl -p
 ```
 
-#### update sshd_config
+Applies security tweaks:
+
+Protects against IP spoofing.
+
+Blocks ICMP flood attacks.
+
+Disables source routing.
+
+Disables IPv6 system-wide.
+
+Logs suspicious packets (martians).
+
+Restricts kernel pointer info leaks.
+
+Enables panic on out-of-memory conditions.
+
+ 🔐 Secure SSH Daemon Configuration
+
 ```bash
 wget -q -c https://raw.githubusercontent.com/conduro/ubuntu/main/sshd.conf -O /etc/ssh/sshd_config
+service ssh restart
 ```
-```conf
-# To disable tunneled clear text passwords, change to no here!
-PasswordAuthentication yes
+Disables password authentication; uses SSH keys only.
 
-# Depending on your 2FA option, you may need to enable some of these options, but they should be disabled by default
-ChallengeResponseAuthentication no
-PasswordAuthentication no
+Limits login attempts (MaxAuthTries 3).
 
-# Allow client to pass locale environment variables
-AcceptEnv LANG LC_*
+Disables X11 forwarding, agent forwarding, environment forwarding.
 
-# Disable connection multiplexing which can be used to bypass authentication
-MaxSessions 1
+Enables PAM authentication.
 
-# Block client 10 minutes after 3 failed login attempts
-MaxAuthTries 3
-LoginGraceTime 10
+Blocks empty passwords and Kerberos.
 
-# Do not allow empty passwords
-PermitEmptyPasswords no
+Logs SSH access attempts.
 
-# Enable PAM authentication
-UsePAM yes
-
-# Disable Kerberos based authentication
-KerberosAuthentication no
-KerberosGetAFSToken no
-KerberosOrLocalPasswd no
-KerberosTicketCleanup yes
-GSSAPIAuthentication no
-GSSAPICleanupCredentials yes
-
-# Disable user environment forwarding
-X11Forwarding no
-AllowTcpForwarding no
-AllowAgentForwarding no
-PermitUserRC no
-PermitUserEnvironment no
-
-# We want to log all activity
-LogLevel INFO
-SyslogFacility AUTHPRIV
-
-# What messages do you want to present your users when they log in?
-Banner none
-PrintMotd no
-PrintLastLog yes
-
-# override default of no subsystems
-Subsystem sftp  /usr/lib/openssh/sftp-server
-```
+Allows optional SSH port customization.
 
 
-#### disable system logging
+🔕 Disable System Logging Services (Optional)
+
 ```bash
-systemctl stop systemd-journald.service
-systemctl disable systemd-journald.service
-systemctl mask systemd-journald.service
-
-systemctl stop rsyslog.service
-systemctl disable rsyslog.service
-systemctl mask rsyslog.service
+systemctl stop systemd-journald.service && systemctl disable --now systemd-journald.service
+systemctl stop rsyslog.service && systemctl disable --now rsyslog.service
 ```
 
+Stops and disables journald and rsyslog to free resources.
 
-#### configure firewall
+Warning: Disabling logs removes audit trails, which may complicate troubleshooting.
+
+9. 🔥 Configure Firewall (UFW)
+
 ```bash
 ufw disable
-echo "y" | sudo ufw reset
+echo "y" | ufw reset
 ufw logging off
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 80/tcp
 ufw allow 443/tcp
-
-# optional prompt to change ssh port
-    ufw allow ${prompt}/tcp
-    sed -i "/Port /Id" /etc/ssh/sshd_config
-    echo "Port ${prompt}" | sudo tee -a /etc/ssh/sshd_config
-# defaults to port 22
-    ufw allow 22/tcp
-
-sed -i "/ipv6=/Id" /etc/default/ufw
-echo "IPV6=no" | sudo tee -a /etc/default/ufw
-
-sed -i "/GRUB_CMDLINE_LINUX_DEFAULT=/Id" /etc/default/grub
-echo "GRUB_CMDLINE_LINUX_DEFAULT=\"ipv6.disable=1 quiet splash\"" | sudo tee -a /etc/default/grub
+ufw allow 22/tcp   # Change to custom port if needed
+ufw --force enable
 ```
 
-#### free disk space
+Resets UFW to defaults.
+
+Blocks all incoming by default except:
+
+HTTP (80)
+
+HTTPS (443)
+
+SSH (22 or custom)
+
+Turns off verbose logging to save space.
+
+Disable IPv6 firewalling and kernel support:
+
+```bash
+sed -i "/ipv6=/Id" /etc/default/ufw
+echo "IPV6=no" | tee -a /etc/default/ufw
+sed -i "/GRUB_CMDLINE_LINUX_DEFAULT=/Id" /etc/default/grub
+echo 'GRUB_CMDLINE_LINUX_DEFAULT="ipv6.disable=1 quiet splash"' | tee -a /etc/default/grub
+update-grub2
+```
+
+Fully disables IPv6 networking system-wide.
+
+🧹 Clean Up Old Logs & Unused Packages
+
 ```bash
 find /var/log -type f -delete
 rm -rf /usr/share/man/*
-apt-get autoremove -y
-apt-get autoclean -y
+apt-get autoremove -y && apt-get autoclean -y
 ```
 
-#### reload system
+Deletes all old logs.
+
+Removes manual pages (optional).
+
+Cleans orphaned packages and package cache
+
+🔄 Reload Configurations and Services
+
 ```bash
 sysctl -p
 update-grub2
@@ -216,3 +207,27 @@ systemctl restart systemd-timesyncd
 ufw --force enable
 service ssh restart
 ```
+
+📝 Final Recommendations:
+
+Backup your system before running.
+
+Test all services post-hardening to ensure availability.
+
+Use SSH key-based authentication only.
+
+Monitor firewall and logs closely after deployment.
+
+For production, consider keeping logs enabled or forwarding to centralized logging.
+
+Keep the system regularly updated for security patches.
+
+
+
+
+
+
+
+
+
+
